@@ -1,0 +1,49 @@
+boladedrac  v1
+nb_players  4
+nb_rounds   601
+nb_capsules 3
+nb_balls    2
+nb_beans    4
+nb_kintons  4
+goku_regen_time   60
+bean_regen_time   60
+kinton_regen_time 60
+kinton_life_time  55
+max_strength         999
+res_strength         200
+moving_penalty       10
+kamehame_penalty     100
+combat_penalty       25
+rows 15
+cols 31
+names ? ? ? ?
+round 0
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+X..X........X.....X........X..X
+X..XXXX..XXXX..X..XXXX..XXXX..X
+X..X...........X...........X..X
+X...........X..X..X...........X
+XXXXXXX.....X..X..X.....XXXXXXX
+X...........X..X..X...........X
+X..C.XXXBXXXXX.C.XXXXXBXXX.C..X
+X...........X..X..X...........X
+XXXXXXX.....X..X..X.....XXXXXXX
+X...........X..X..X...........X
+X..X...........X...........X..X
+X..XXXX..XXXX..X..XXXX..XXXX..X
+X..X........X.....X........X..X
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+beans
+1  4   y 0 
+1  26  y 0
+13 4   y 0 
+13 26  y 0
+kintons
+1  11  y 0
+1  19  y 0
+13 11  y 0
+13 19  y 0
+normal   1  1 0 a 0 999 0 0
+normal   1 29 0 a 0 999 0 0
+normal  13  1 0 a 0 999 0 0
+normal  13 29 0 a 0 999 0 0

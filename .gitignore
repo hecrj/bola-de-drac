@@ -1,0 +1,5 @@
+BolaDeDrac
+*.bdd
+*.o
+!Tonto*.o
+*.deps

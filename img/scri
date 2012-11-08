@@ -1,0 +1,7 @@
+#!/bin/bash
+
+for file in *.png; do
+    convert -resize 50x50 $file tmp.png
+    cp tmp.png $file
+done
+rm tmp.png
