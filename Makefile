@@ -28,4 +28,10 @@ BolaDeDrac: BackTrace.o Utils.o PosDir.o Board.o Action.o Player.o Registry.o Ga
 Makefile.deps:
 	$(CXX) $(CPPFLAGS) -MM *.cc > Makefile.deps
 
+play:
+	./BolaDeDrac ChunkyBacon Tonto Tonto Tonto -i demo.cnf -o game.bdd
+
+view:
+	./viewer.sh game.bdd
+
 include Makefile.deps
