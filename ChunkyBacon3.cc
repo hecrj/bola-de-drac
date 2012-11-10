@@ -59,7 +59,8 @@ struct PLAYER_NAME : public Player {
             {
                 Goku g = goku(i);
 
-                if(g.pos == u and (1 + gme.strength) / (2 + g.strength + gme.strength) < 0.8)
+                if(g.pos == u and
+                    (double(1 + gme.strength) / double(2 + g.strength + gme.strength)) < 0.8)
                     cost += 20;
             }
         }
@@ -86,7 +87,7 @@ struct PLAYER_NAME : public Player {
         generatePath(p, p[u.i][u.j]);
     }
 
-    bool recalculatePath(CType c)
+    bool recalculate_path(CType c)
     {
         // Clear the current path
         path.clear();
@@ -139,18 +140,96 @@ struct PLAYER_NAME : public Player {
         return None;
     }
 
-    void followPath()
+    int get_num_aligned_gokus(const Pos &u, Dir d)
+    {
+        int players = nb_players();
+        int count = 0;
+
+        Pos n = u + d;
+
+        while(pos_ok(n) and cell(n).type != Rock)
+        {
+            for(int i = 0; i < players; ++i)
+            {
+                Goku g = goku(i);
+
+                if(g.alive and g.pos == n)
+                    count++;
+            }
+
+            n += d;
+        }
+
+        return count;
+    }
+
+    Dir get_dir_max_aligned_gokus(const Pos &u)
+    {
+        Dir res = None;
+        int max = 1;
+
+        for(int i = Top; i <= Right; ++i)
+        {
+            Dir d = static_cast<Dir>(i);
+            int count = get_num_aligned_gokus(u, d);
+
+            if(count > max)
+            {
+                max = count;
+                res = d;
+            }
+        }
+
+        return res;
+    }
+
+    bool kame_all(const Pos &u)
+    {
+        Dir dir = get_dir_max_aligned_gokus(u);
+
+        if(dir != None)
+        {
+            throw_kamehame(dir);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool kame_to_front(const Pos &d, const Dir &dir)
+    {
+        Pos front = d + dir;
+        int players = nb_players();
+
+        for(int i = 0; i < players; ++i)
+        {
+            Goku g = goku(i);
+
+            if(g.alive and (g.pos == d or g.pos == front))
+            {
+                throw_kamehame(dir);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void perform_action()
     {
         if(path.empty())
             return;
 
         Pos u = goku(me()).pos;
         Pos d = path.front();
-        path.pop_front();
-
+        
         Dir dir = getDirection(u, d);
 
-        move(dir);
+        if(gme.strength < kamehame_penalty() or (!kame_to_front(d, dir) and !kame_all(u)))
+        {
+            path.pop_front();
+            move(dir);
+        }
     }
 
     bool has_turn(const Goku &g)
@@ -160,13 +239,12 @@ struct PLAYER_NAME : public Player {
 
     bool is_strength_low(const Goku &g, const Path &p)
     {
-        if(obj == Bean and !path.empty())
-            return true;
+
 
         if(has_kinton(g.type))
-            return (g.strength <= (moving_penalty() * ((int)path.size() + 18) + combat_penalty()*4));
+            return (g.strength <= (moving_penalty() * ((int)path.size() + 6)));
 
-        return (g.strength <= (moving_penalty() * ((int)path.size() + 10) + combat_penalty()*2));
+        return (g.strength <= (moving_penalty() * ((int)path.size() + 4)));
     }
 
     bool is_too_far(const Path &p)
@@ -195,10 +273,10 @@ struct PLAYER_NAME : public Player {
         else
             obj = Ball;
 
-        recalculatePath(obj);
+        recalculate_path(obj);
 
         if(is_too_far(path))
-            recalculatePath(Kinton);
+            recalculate_path(Kinton);
     }
 
     /**
@@ -228,15 +306,15 @@ struct PLAYER_NAME : public Player {
         if(has_objective_changed())
             find_new_objective();
         else
-            recalculatePath(obj);
+            recalculate_path(obj);
 
         if(path.empty())
         {
             obj = has_kinton(gme.type) ? Bean : Kinton;
-            recalculatePath(obj);
+            recalculate_path(obj);
         }
-        
-        followPath();
+
+        perform_action();
     }
 
     

@@ -32,7 +32,7 @@ play: all
 	./BolaDeDrac ChunkyBacon3 Tonto Tonto Tonto -i demo.cnf -o game.bdd
 
 play2: all
-	./BolaDeDrac ChunkyBacon ChunkyBacon ChunkyBacon ChunkyBacon2 -i demo.cnf -o game.bdd
+	./BolaDeDrac ChunkyBacon3 ChunkyBacon3 ChunkyBacon ChunkyBacon -i demo.cnf -o game.bdd
 
 view:
 	./viewer.sh game.bdd
