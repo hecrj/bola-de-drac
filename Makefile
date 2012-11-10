@@ -1,6 +1,6 @@
 # Add your players here with .o extension.
 
-PLAYERS = ChunkyBacon.o Demo.o Tonto.o
+PLAYERS = ChunkyBacon.o ChunkyBacon2.o ChunkyBacon3.o Demo.o Tonto.o
 
 # Do not modify past this point.
 
@@ -28,8 +28,11 @@ BolaDeDrac: BackTrace.o Utils.o PosDir.o Board.o Action.o Player.o Registry.o Ga
 Makefile.deps:
 	$(CXX) $(CPPFLAGS) -MM *.cc > Makefile.deps
 
-play:
-	./BolaDeDrac ChunkyBacon Tonto Tonto Tonto -i demo.cnf -o game.bdd
+play: all
+	./BolaDeDrac ChunkyBacon3 Tonto Tonto Tonto -i demo.cnf -o game.bdd
+
+play2: all
+	./BolaDeDrac ChunkyBacon ChunkyBacon ChunkyBacon ChunkyBacon2 -i demo.cnf -o game.bdd
 
 view:
 	./viewer.sh game.bdd
