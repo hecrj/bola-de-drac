@@ -12,7 +12,7 @@ kinton_life_time  55
 max_strength         999
 res_strength         200
 moving_penalty       10
-kamehame_penalty     100
+kamehame_penalty     700
 combat_penalty       25
 rows 15
 cols 31
@@ -24,9 +24,9 @@ X.X.......XXXX...XXXX.......X.X
 X.X.......X..XXXXX..X.......X.X
 X.X.........................X.X
 X.X..XXX.XXX.......XXX.XXX..X.X
-X.X..X.....X.......X.....X..X.X
-X....XXXXXXX.......XXXXXXX....X
-X.X..X.....X.......X.....X..X.X
+X.X..X.....X...X...X.....X..X.X
+X....XXXXXXX..XXX..XXXXXXX....X
+X.X..X.....X...X...X.....X..X.X
 X.X..XXX.XXX.......XXX.XXX..X.X
 X.X.........................X.X
 X.X.......X..XXXXX..X.......X.X

@@ -210,7 +210,8 @@ Board::Board (istream& is) {
 
     status_[id] = status;
 
-    cells_[i][j].id = id;
+    if (gokus_[id].alive) cells_[i][j].id = id;
+
     assert(not gokus_[id].alive         or 
 	   cells_[i][j].type == Empty   or 
 	   cells_[i][j].type == Capsule or 
@@ -219,6 +220,8 @@ Board::Board (istream& is) {
   assert(n_balls + n_gokus_with_ball == nb_balls());
 
   nb_balls_to_be_placed_ = 0;
+
+  assert(ok());
 }
 
 
@@ -324,11 +327,19 @@ Board Board::next (const vector<Action>& asked, vector<Action>& done) const {
     assert(done[player].dir  == None     );
     AType a = asked[player].type;
     Dir   d = asked[player].dir;
-    bool throw_ok = b.apply_throw(player, a, d);
-    if (throw_ok) {
-      done[player].type = a;
-      done[player].dir  = d;
-      break; // only 1 kame hame per round!
+
+    const Goku& g = gokus_[player];
+    if (g.strength >= kamehame_penalty()) {
+      int outcome = randomize() % (max_strength() - kamehame_penalty() + 1);
+      int allowed = g.strength - kamehame_penalty();
+      if (outcome <= allowed) {
+	bool throw_ok = b.apply_throw(player, a, d);
+	if (throw_ok) {
+	  done[player].type = a;
+	  done[player].dir  = d;
+	  break; // only 1 kame hame per round!
+	}
+      }
     }
   }
 
@@ -450,6 +461,7 @@ bool Board::apply_throw(int id, AType a, Dir d) {
 	g2.kinton   = 0;
 	g2.alive    = false;
 	g2.time     = goku_regen_time();
+	cells_[p.i][p.j].id = -1;
       }
       p = dest(p, d);
     }
@@ -527,7 +539,7 @@ bool Board::apply_move(int id, AType a, Dir d) {
     }
     else {
 
-      g2.strength = max(0, g1.strength - combat_penalty());
+      g2.strength = max(0, g2.strength - combat_penalty());
 
       if (has_kinton(g1.type)) {
 	g2.type = jump_on_kinton(g2.type);

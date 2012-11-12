@@ -12,7 +12,7 @@ kinton_life_time  55
 max_strength         999
 res_strength         200
 moving_penalty       10
-kamehame_penalty     100
+kamehame_penalty     700
 combat_penalty       25
 rows 15
 cols 31

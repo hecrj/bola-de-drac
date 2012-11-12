@@ -1,2 +1,5 @@
 v01: 
     - First version
+
+v02:
+    - Fixed bugs related to dead gokus, and scores

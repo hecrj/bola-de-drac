@@ -16,6 +16,8 @@ using namespace std;
 
 struct PLAYER_NAME : public Player {
 
+  static const int DF[4];
+  static const int DC[4];
 
     /**
      * Factory: returns a new instance of this class.
@@ -45,6 +47,8 @@ struct PLAYER_NAME : public Player {
     
 };
 
+const int PLAYER_NAME::DF[4] = { 0, 0, 1,-1};
+const int PLAYER_NAME::DC[4] = { 1,-1, 0, 0};
 
 /**
  * Do not modify the following line.
