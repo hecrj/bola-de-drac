@@ -10,7 +10,7 @@ using namespace std;
  * Write the name of your player and save this file
  * with the same name and .cc extension.
  */
-#define PLAYER_NAME ChunkyFSM
+#define PLAYER_NAME EDI0
 
 struct PLAYER_NAME : public Player {
 
@@ -36,6 +36,7 @@ struct PLAYER_NAME : public Player {
         public:
             virtual ~State(){}
             virtual void enter(PLAYER_NAME* player){};
+            virtual void transition(PLAYER_NAME* player){};
             virtual void execute(PLAYER_NAME* player){};
             virtual void leave(PLAYER_NAME* player){};
     };
@@ -158,6 +159,7 @@ struct PLAYER_NAME : public Player {
     class Steering
     {
         PLAYER_NAME* player;
+        Path path;
         Dijkstra* dijkstra;
         CType objective;
 
@@ -183,17 +185,24 @@ struct PLAYER_NAME : public Player {
             dijkstra = new Dijkstra(player);
         }
 
+        int get_path_size()
+        {
+            return path.size();
+        }
+
         void seek_to(CType obj)
         {
             objective = obj;
         }
 
+        void find_path()
+        {
+            path.clear();
+            dijkstra->search(objective, path);
+        }
+
         void move()
         {
-            Path path;
-
-            dijkstra->search(objective, path);
-
             if(not path.empty())
             {
                 Pos d = path.front();
@@ -217,18 +226,18 @@ struct PLAYER_NAME : public Player {
         return (gme.alive and (has_kinton(gme.type) or round() % 2 == 0));
     }
 
-    /*bool has_strength_low()
+    bool has_strength_low()
     {
         if(has_kinton(gme.type))
-            return (gme.strength <= (moving_penalty() * 30));
+            return (gme.strength <= (moving_penalty() * (steering->get_path_size() + 18)));
 
-        return (gme.strength <= (moving_penalty() * 20));
+        return (gme.strength <= (moving_penalty() * (steering->get_path_size() + 10)));
     }
 
     bool is_too_far()
     {
-        return (!has_kinton(gme.type) and path.size() > 20);
-    }*/
+        return (not has_kinton(gme.type) and steering->get_path_size() > 20);
+    }
 
     bool is_stronger_than(const Goku &g)
     {
@@ -236,6 +245,11 @@ struct PLAYER_NAME : public Player {
         double b = double(2 + + gme.strength + g.strength);
 
         return (a/b >= 0.8);
+    }
+
+    void analyze_environment()
+    {
+        steering->find_path();
     }
 
     void to_previous_state()
@@ -275,13 +289,14 @@ struct PLAYER_NAME : public Player {
     {
         gme = goku(me());
 
+        // Initialize members of the class
         if(round() == 0)
         {
             steering = new Steering(this);
             states = vector<State*>(4);
             states[GetBall] = new GetBallState();
-            //states[GetBean] = new GetBeanState();
-            //states[GetKinton] = new GetKintonState();
+            states[GetBean] = new GetBeanState();
+            states[GetKinton] = new GetKintonState();
             states[GoToCapsule] = new GoToCapsuleState();
 
             global_state = new GlobalPlayerState();
@@ -289,6 +304,15 @@ struct PLAYER_NAME : public Player {
             states[current_state]->enter(this);
         }
 
+        // Because it is not possible to analyze consequences of actions until next
+        // round, it is necessary to process state transitions before execution
+        states[current_state]->transition(this);
+
+        // Analyze the current map for the current state
+        analyze_environment();
+
+        // This is the global state, it is used to put the player in some states when
+        // they are prioritary (runaway, for example)
         global_state->execute(this);
 
         if(has_turn())
@@ -299,11 +323,17 @@ struct PLAYER_NAME : public Player {
     {
         virtual void execute(PLAYER_NAME* player)
         {
-            /*if(!player->is_in_state(GetBean) and player->has_strength_low())
+            if(not player->is_in_state(GetBean) and player->has_strength_low())
                 player->change_state(GetBean);
 
-            else if(!player->is_in_state(GetKinton) and player->is_too_far())
-                player->change_state(GetKinton);*/
+            else if(not player->is_in_state(GetKinton) and player->is_too_far())
+                player->change_state(GetKinton);
+
+            else
+            {
+                if(player->steering->get_path_size() == 0)
+                    player->change_state(has_kinton(player->gme.type) ? GetBean : GetKinton);
+            }
         }
     };
 
@@ -314,12 +344,15 @@ struct PLAYER_NAME : public Player {
             player->steering->seek_to(Ball);
         }
 
+        virtual void transition(PLAYER_NAME* player)
+        {
+            if(has_ball(player->gme.type))
+                player->change_state(GoToCapsule);
+        }
+
         virtual void execute(PLAYER_NAME* player)
         {
             player->steering->move();
-
-            if(has_ball(player->gme.type))
-                player->change_state(GoToCapsule);
         }
     };
 
@@ -330,12 +363,59 @@ struct PLAYER_NAME : public Player {
             player->steering->seek_to(Capsule);
         }
 
+        virtual void transition(PLAYER_NAME* player)
+        {
+            if(! has_ball(player->gme.type))
+                player->change_state(GetBall);
+        }
+
         virtual void execute(PLAYER_NAME* player)
         {
             player->steering->move();
+        }
+    };
 
-            if(! has_ball(player->gme.type))
+    class GetBeanState : public State
+    {
+        virtual void enter(PLAYER_NAME* player)
+        {
+            player->steering->seek_to(Bean);
+            player->steering->find_path();
+        }
+
+        virtual void transition(PLAYER_NAME* player)
+        {
+            if(has_ball(player->gme.type))
+                player->change_state(GoToCapsule);
+            else
                 player->change_state(GetBall);
+        }
+
+        virtual void execute(PLAYER_NAME* player)
+        {
+            player->steering->move();
+        }
+    };
+
+    class GetKintonState : public State
+    {
+        virtual void enter(PLAYER_NAME* player)
+        {
+            player->steering->seek_to(Kinton);
+            player->steering->find_path();
+        }
+
+        virtual void transition(PLAYER_NAME* player)
+        {
+            if(has_ball(player->gme.type))
+                player->change_state(GoToCapsule);
+            else
+                player->change_state(GetBall);
+        }
+
+        virtual void execute(PLAYER_NAME* player)
+        {
+            player->steering->move();
         }
     };
     

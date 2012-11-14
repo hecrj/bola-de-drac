@@ -1,6 +1,6 @@
 # Add your players here with .o extension.
 
-PLAYERS = ChunkyBacon.o ChunkyBacon2.o ChunkyBacon3.o ChunkyFSM.o Demo.o Tonto.o
+PLAYERS = ChunkyBacon.o ChunkyBacon2.o ChunkyBacon3.o ChunkyBacon4.o EDI0.o Demo.o Tonto.o
 
 # Do not modify past this point.
 
@@ -26,7 +26,7 @@ BolaDeDrac: BackTrace.o Utils.o PosDir.o Board.o Action.o Player.o Registry.o Ga
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 play: all
-	./BolaDeDrac ChunkyBacon3 ChunkyFSM ChunkyBacon2 ChunkyBacon -i demo.cnf -o game.bdd
+	./BolaDeDrac EDI0 Tonto Tonto Tonto -i demo.cnf -o game.bdd
 
 view:
 	./viewer.sh game.bdd
