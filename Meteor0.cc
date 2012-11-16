@@ -300,7 +300,7 @@ struct PLAYER_NAME : public Player {
         Path kin;
         search(Kinton, kin);
 
-        if(3 * kin.size <= obj.size + 16)
+        if(3 * kin.size <= 2*obj.size)
         {
             set_path(kin);
             return true;
