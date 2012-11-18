@@ -2,8 +2,7 @@
 maps = [:demo, :maze, :zigzag]
 
 n = ARGV.shift.to_i
-cores = `grep -c processor /proc/cpuinfo`.to_i
-n_core = n / cores
+period = n / 10
 
 players = ARGV
 names = players.join(' ')
@@ -14,43 +13,17 @@ maps.each do |map|
   players.each { |player| counter[map][player] = 0 }
 end
 
-pipes = {:read => [], :write => []}
+n.times do |t|
+  current_match = t+1
+  puts "Playing match #{current_match}" if (current_match) % period == 0
 
-cores.times do |c|
-  pipes[:read][c], pipes[:write][c] = IO.pipe
-  
-  fork do
-    pipes[:read][c].close
+  maps.each do |map|
+    system("./BolaDeDrac #{names} -i #{map}.cnf -o game.bdd 2> kaame.out > /dev/null")
 
-    n_core.times do |t|
-      maps.each do |map|
-        puts "Playing match #{n_core*c + t + 1} in #{map}"
+    winner = `tail -n 2 kaame.out`.scan(/(\w+) got top score/)[0][0]
+    counter[map][winner] += 1
 
-        system("./BolaDeDrac #{names} -i #{map}.cnf -o game.bdd 2> kaame#{c}.out > /dev/null")
-
-        winner = `tail -n 2 kaame#{c}.out`.scan(/(\w+) got top score/)[0][0]
-        counter[map][winner] += 1
-      end
-    end
-
-    Marshal.dump(counter, pipes[:write][c])
-  end
-end
-
-pipes[:write].each { |pipe| pipe.close }
-
-results = []
-pipes[:read].each { |pipe| results << pipe.read }
-
-Process.waitpid
-
-results.each do |result|
-  raise "child failed" if result.empty?
-
-  subcounter = Marshal.load(result)
-
-  subcounter.each do |map, subcount|
-    subcount.each { |player, victories| counter[map][player] += victories }
+    sleep 1
   end
 end
 
