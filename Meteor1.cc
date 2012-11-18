@@ -312,82 +312,6 @@ struct PLAYER_NAME : public Player {
         return (hn >= hc);
     }
 
-    Dir calculate_evasion(queue<GInfo> &gokus)
-    {
-        Dir current = get_direction_to(path.next);
-        Dir evade = current;
-        int max_strength = 0;
-
-        while(not gokus.empty())
-        {
-            GInfo g = gokus.front();
-            gokus.pop();
-
-            Goku enemy = goku(g.id);
-
-            if(is_stronger_than(enemy))
-                continue;
-
-            if(enemy.strength <= max_strength)
-                continue;
-
-            max_strength = enemy.strength;
-
-            if(is_far(gme.pos, enemy.pos, current))
-            {
-                evade = current;
-                continue;
-            }
-
-            switch(current)
-            {
-                case Top:
-                case Bottom:
-                    if(is_far(gme.pos, enemy.pos, Left))
-                        evade = Left;
-                    else if(is_far(gme.pos, enemy.pos, Right))
-                        evade = Right;
-                    else if(current == Top)
-                        evade = Bottom;
-                    else
-                        evade = Top;
-                break;
-
-                case Left:
-                case Right:
-                    if(is_far(gme.pos, enemy.pos, Top))
-                        evade = Top;
-                    else if(is_far(gme.pos, enemy.pos, Bottom))
-                        evade = Bottom;
-                    else if(current == Left)
-                        evade = Right;
-                    else
-                        evade = Left;
-                break;
-
-                default:
-                    evade = Top;
-                break;
-            }
-            
-        }
-
-        return evade;
-    }
-
-    bool is_in_danger(Dir &kame, Dir &evade)
-    {
-        queue<GInfo> gokus;
-
-        if(! radar(gme.pos, 2, gokus, kame))
-            return false;
-
-        if(prob_kame() < 0.8 or kame == None)
-            evade = calculate_evasion(gokus);
-
-        return (kame != None or evade != None);
-    }
-
     struct KameDir
     {
         Dir dir;
@@ -417,6 +341,9 @@ struct PLAYER_NAME : public Player {
                 Goku g = goku(gid);
                 double g_score = double(g.balls) + (double(g.strength) / double(max_strength()));
 
+                if(has_ball(g.type))
+                    g_score *= 3.0;
+
                 if(radar_gokus[gid])
                     current.score_in  += g_score * 2.0;
                 else
@@ -438,11 +365,12 @@ struct PLAYER_NAME : public Player {
     Dir get_kame_direction(Pos u, const vector<bool> &radar_gokus)
     {
         KameDir kame;
+        kame.score_in = double(gme.balls) + (double(gme.strength) / double(max_strength()));
 
         for(int i = Top; i <= Right; ++i)
             kame_dir_update(static_cast<Dir>(i), radar_gokus, kame);
 
-        return kame;
+        return kame.dir;
     }
 
     bool objectives_detected(Dir &kame)
@@ -461,9 +389,7 @@ struct PLAYER_NAME : public Player {
 
     void recover_energy()
     {
-        Path bean(Bean);
-
-        search(gme.pos, bean);
+        Path bean(gme.pos, Bean);
 
         if(has_ball(gme.type) and bean.size >= path.size)
             return;
@@ -497,7 +423,7 @@ struct PLAYER_NAME : public Player {
 
         double heuristic = double(alt.size + alt_obj.size) / 2.0;
 
-        return (heuristic <= (1.0 - m) * 1.5 * double(obj.size) / 2.0);
+        return (heuristic <= (1.5 - m) * 1.5 * double(obj.size) / 2.0);
     }
 
     bool kinton_vanishes_soon()
@@ -578,6 +504,9 @@ struct PLAYER_NAME : public Player {
 
         double energy = double(gme.strength) / (double(max_strength())*1.3);
 
+        if(kamehame_penalty() > gme.strength)
+            energy /= 2;
+
         if(is_better_on_kinton(bean, ball, energy))
             set_path(bean);
 
@@ -642,9 +571,12 @@ struct PLAYER_NAME : public Player {
             if(is_strength_lower(0.1))
                 recover_energy();
 
-            Dir kame, evade;
+            Dir kame;
 
-            if(objectives_detected(kame))
+            if(path.empty())
+                wander();
+
+            else if(objectives_detected(kame))
                 throw_kamehame(kame);
 
             else
