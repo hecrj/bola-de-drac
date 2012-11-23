@@ -1,6 +1,6 @@
 boladedrac  v1
 nb_players  4
-nb_rounds   601
+nb_rounds   1001
 nb_capsules 4
 nb_balls    3
 nb_beans    2
@@ -30,7 +30,7 @@ XXXXXXXXXXXXXXX.XXXXXXXXXXXXXXX
 X.............................X
 X.XXXXXXXXXXXXX.XXXXXXXXXXXXX.X
 X..............X..............X
-XXXXXXXXXXXXXX...XXXXXXXXXXXX.X
+XXXXXXXXXXXXXX...XXXXXXXXXXXXXX
 X.C............X............C.X
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 beans

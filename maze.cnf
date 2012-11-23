@@ -1,6 +1,6 @@
 boladedrac  v1
 nb_players  4
-nb_rounds   601
+nb_rounds   1001
 nb_capsules 4
 nb_balls    2
 nb_beans    4
@@ -34,9 +34,9 @@ X.X.......XXXX...XXXX.......X.X
 XCX............B............XCX
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 beans
-6  6   y 0 
+6  6   y 0
 6  24  y 0
-8  6   y 0 
+8  6   y 0
 8  24  y 0
 kintons
 6  10  y 0
