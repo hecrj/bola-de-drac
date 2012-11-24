@@ -293,25 +293,6 @@ struct PLAYER_NAME : public Player {
             double(1 + max_strength() - kamehame_penalty());
     }
 
-    bool is_far(const Pos &a, const Pos &b, Dir d)
-    {
-        Pos n = a + d;
-
-        if(cell(n).type == Rock)
-            return false;
-
-        double c1 = a.i - b.i;
-        double c2 = a.j - b.j;
-        double hc = sqrt(c1*c1 + c2*c2);
-
-        double n1 = n.i - b.i;
-        double n2 = n.j - b.j;
-        double hn = sqrt(n1*n1 + n2*n2);
-
-        cout << gme.id << " " << round() << " " << hc << " " << hn << " " << d2c(d) << endl;
-        return (hn >= hc);
-    }
-
     struct KameDir
     {
         Dir dir;
@@ -334,7 +315,7 @@ struct PLAYER_NAME : public Player {
 
         while(cell(u).type != Rock)
         {
-            int gid = get_goku_id_in(u);
+            int gid = cell(u).id;
 
             if(gid >= 0)
             {
@@ -342,6 +323,9 @@ struct PLAYER_NAME : public Player {
                 double g_score = double(g.balls) + (double(g.strength) / double(max_strength()));
 
                 if(has_ball(g.type))
+                    g_score *= 3.0;
+
+                if(g.strength > kamehame_penalty())
                     g_score *= 3.0;
 
                 if(radar_gokus[gid])
@@ -352,6 +336,9 @@ struct PLAYER_NAME : public Player {
 
             u += d;
         }
+
+        if(current.score_in <= 0.0 and current.score_out <= 0.0)
+            return;
 
         if(current.score_in > current.score_out)
         {
@@ -365,7 +352,11 @@ struct PLAYER_NAME : public Player {
     Dir get_kame_direction(Pos u, const vector<bool> &radar_gokus)
     {
         KameDir kame;
-        kame.score_in = double(gme.balls) + (double(gme.strength) / double(max_strength()));
+        double potential_balls = double(nb_rounds() - round()) / 30.0;
+        
+        kame.score_out = -potential_balls;
+        kame.score_in = -potential_balls + double(gme.balls);
+        kame.score_in += (double(gme.strength) / double(max_strength()));
 
         for(int i = Top; i <= Right; ++i)
             kame_dir_update(static_cast<Dir>(i), radar_gokus, kame);
@@ -375,12 +366,13 @@ struct PLAYER_NAME : public Player {
 
     bool objectives_detected(Dir &kame)
     {
-        if(prob_kame() < 0.8)
+        if(prob_kame() < 0.75)
             return false;
 
         vector<bool> gokus;
                 
         radar(path.end, 8, gokus);
+        radar(gme.pos, 3, gokus);
 
         kame = get_kame_direction(gme.pos, gokus);
 
@@ -397,6 +389,11 @@ struct PLAYER_NAME : public Player {
         set_path(bean);
     }
 
+    double get_strength_prop()
+    {
+        return double(gme.strength) / double(max_strength());
+    }
+
     bool is_kinton_awesome_for(Path &kin, Path &obj)
     {
         if(kin.empty())
@@ -408,7 +405,22 @@ struct PLAYER_NAME : public Player {
         Path kin_obj(kin.end, obj.type);
         double heuristic = double(kin.size) + (double(kin_obj.size) / 2.0);
 
-        return (heuristic <= 2 * double(obj.size));
+        return (heuristic <= 2.0 * double(obj.size));
+    }
+
+    bool is_better(Path &alt, Path &obj, double m)
+    {
+        if(alt.empty())
+            return false;
+
+        if(obj.empty())
+            return true;
+
+        Path alt_obj(alt.end, obj.type);
+
+        double heuristic = double(alt.size + alt_obj.size);
+
+        return (heuristic * m <= double(obj.size));
     }
 
     bool is_better_on_kinton(Path &alt, Path &obj, double m)
@@ -461,6 +473,15 @@ struct PLAYER_NAME : public Player {
     {
         Path ball(gme.pos, Ball);
         Path kinton(gme.pos, Kinton);
+        Path bean(gme.pos, Bean);
+
+        if(is_better(bean, ball, get_strength_prop()))
+        {
+            if(is_kinton_awesome_for(kinton, bean))
+                set_path(kinton);
+            else
+                set_path(bean);
+        }
 
         // Always look for kintons! (OP)
         if(is_kinton_awesome_for(kinton, ball))
@@ -469,22 +490,26 @@ struct PLAYER_NAME : public Player {
         else if(not ball.empty())
             set_path(ball);
 
-        else
-        {
-            Path bean(gme.pos, Bean);
-
-            if(not bean.empty())
-                set_path(bean);
-        }   
+        else if(not bean.empty())
+            set_path(bean);
     }
 
     void collect_balls_with_ball()
     {
         Path capsule(gme.pos, Capsule);
         Path kinton(gme.pos, Kinton);
+        Path bean(gme.pos, Bean);
+
+        if(is_better(bean, capsule, get_strength_prop()))
+        {
+            if(is_kinton_awesome_for(kinton, bean))
+                set_path(kinton);
+            else
+                set_path(bean);
+        }
 
         // Always look for kintons! (OP)
-        if(is_kinton_awesome_for(kinton, capsule))
+        else if(is_kinton_awesome_for(kinton, capsule))
             set_path(kinton);
 
         else if(not capsule.empty())
@@ -567,9 +592,6 @@ struct PLAYER_NAME : public Player {
         if(has_turn())
         {
             collect_balls();
-
-            if(is_strength_lower(0.1))
-                recover_energy();
 
             Dir kame;
 

@@ -1,6 +1,5 @@
-# Add your players here with .o extension.
-
-PLAYERS = Null.o Demo.o Tonto.o
+PLAYERS = ChunkyBacon.o ChunkyBacon2.o ChunkyBacon3.o ChunkyBacon4.o EDI0.o EDI1.o Demo.o Tonto.o
+PLAYERS += Meteor0.o Meteor1.o Ultimate2.o Ultimate3.o
 
 # Do not modify past this point.
 
@@ -24,6 +23,12 @@ clean:
 
 BolaDeDrac: BackTrace.o Utils.o PosDir.o Board.o Action.o Player.o Registry.o Game.o BolaDeDrac.o $(PLAYERS)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+play: all
+	./BolaDeDrac Meteor1 Tonto Tonto Tonto -i demo.cnf -o game.bdd
+
+view:
+	./viewer.sh game.bdd
 
 Makefile.deps:
 	$(CXX) $(CPPFLAGS) -MM *.cc > Makefile.deps
