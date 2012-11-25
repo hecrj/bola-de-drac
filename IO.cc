@@ -143,7 +143,18 @@ struct PLAYER_NAME : public Player {
             end(-1, -1),
             size(0)
         {
-            PLAYER_NAME::inst->search(u, *this);
+            PLAYER_NAME::inst->search(u, 0, *this);
+        }
+
+        inline Path(const Path &p, CType type)
+        :   otype(type),
+            first(-1, -1),
+            end(-1, -1),
+            size(0)
+        {
+            int relative_rounds = PLAYER_NAME::inst->calculate_rounds(p.size, 0);
+
+            PLAYER_NAME::inst->search(p.end, relative_rounds, *this);
         }
 
         /**
@@ -255,7 +266,7 @@ struct PLAYER_NAME : public Player {
      * @param  path Path with objective where to store the found path
      * @return      True if a path is found, false otherwise
      */
-    bool search(const Pos &p, Path &path)
+    bool search(const Pos &p, int rel_rounds, Path &path)
     {
         costs = CostTable(rows(), vector<int>(cols(), numeric_limits<int>::max()));
         prev_pos = PrevPosTable(rows(), vector<Pos>(cols()));
@@ -277,7 +288,7 @@ struct PLAYER_NAME : public Player {
 
             if(map[u.i][u.j].type == path.otype)
             {
-                if(is_available_when_arrival(u, path.otype))
+                if(is_available_when_arrival(u, path.otype, rel_rounds))
                 {
                     generate_path(u, path);
                     return true;
@@ -299,41 +310,41 @@ struct PLAYER_NAME : public Player {
         return false;
     }
 
-    bool is_available_when_arrival(const Pos &u, CType type)
+    bool is_available_when_arrival(const Pos &u, CType type, int rel_rounds)
     {
         if(type == Bean)
-            return is_available_when_arrival(u, beans());
+            return is_available_when_arrival(u, beans(), rel_rounds);
         
-        return is_available_when_arrival(u, kintons());
+        return is_available_when_arrival(u, kintons(), rel_rounds);
     }
 
-    bool is_available_when_arrival(const Pos &u, const vector<Magic_Bean> &beans)
+    bool is_available_when_arrival(const Pos &u, const vector<Magic_Bean> &beans, int rel_rounds)
     {
         int id = map[u.i][u.j].id;
 
-        return (beans[id].time < calculate_rounds(costs[u.i][u.j]));
+        return (beans[id].time < calculate_rounds(costs[u.i][u.j], rel_rounds));
     }
 
-    bool is_available_when_arrival(const Pos &u, const vector<Kinton_Cloud> &kintons)
+    bool is_available_when_arrival(const Pos &u, const vector<Kinton_Cloud> &kintons, int rel_rounds)
     {
         int id = map[u.i][u.j].id;
 
-        return (kintons[id].time < calculate_rounds(costs[u.i][u.j]));
+        return (kintons[id].time < calculate_rounds(costs[u.i][u.j], rel_rounds));
     }
 
-    int calculate_rounds(int cost)
+    int calculate_rounds(int cost, int rel_rounds)
     {
         int rounds = cost * 2;
 
         if(has_kinton(gme.type))
         {
-            if(gme.kinton >= rounds)
+            if(gme.kinton >= (rounds + rel_rounds))
                 return cost;
             
-            return rounds - gme.kinton;
+            return rounds + rel_rounds - gme.kinton;
         }
 
-        return rounds;
+        return rounds + rel_rounds;
     }
 
     /**
@@ -655,7 +666,7 @@ struct PLAYER_NAME : public Player {
         if(obj.empty())
             return true;
 
-        Path alt_obj(alt.end, obj.otype);
+        Path alt_obj(alt, obj.otype);
         double heuristic = double(alt.size + alt_obj.size);
 
         return (heuristic * m <= double(obj.size) * (2.0 - m));
