@@ -26,7 +26,7 @@ BolaDeDrac: BackTrace.o Utils.o PosDir.o Board.o Action.o Player.o Registry.o Ga
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 play: all
-	./BolaDeDrac IO Meteor1 Meteor1 IO -i cnord.cnf -o game.bdd
+	./BolaDeDrac IO Meteor1 Demo Demo -i cnord.cnf -o game.bdd
 
 view:
 	./viewer.sh game.bdd

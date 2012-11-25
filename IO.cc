@@ -71,6 +71,19 @@ struct PLAYER_NAME : public Player {
      */
     typedef vector< vector<Pos> > PrevPosTable;
 
+    struct TempCell
+    {
+        int id;
+        CType type;
+
+        inline TempCell ()
+        :   id(-1),
+            type(Empty)
+        {   }
+    };
+
+    typedef vector< vector<TempCell> > Map;
+
     /**
      * Represents a path in the board.
      */
@@ -213,6 +226,8 @@ struct PLAYER_NAME : public Player {
      */
     Goku gme;
 
+    Map map;
+
     /**
      * Path that the player must follow.
      */
@@ -260,6 +275,15 @@ struct PLAYER_NAME : public Player {
                 return true;
             }
 
+            if(map[u.i][u.j].type == path.otype)
+            {
+                if(is_available_when_arrival(u, path.otype))
+                {
+                    generate_path(u, path);
+                    return true;
+                }
+            }
+
             for(int i = Top; i <= Right; ++i)
             {
                 Pos v = u + static_cast<Dir>(i);
@@ -273,6 +297,43 @@ struct PLAYER_NAME : public Player {
         }
 
         return false;
+    }
+
+    bool is_available_when_arrival(const Pos &u, CType type)
+    {
+        if(type == Bean)
+            return is_available_when_arrival(u, beans());
+        
+        return is_available_when_arrival(u, kintons());
+    }
+
+    bool is_available_when_arrival(const Pos &u, const vector<Magic_Bean> &beans)
+    {
+        int id = map[u.i][u.j].id;
+
+        return (beans[id].time < calculate_rounds(costs[u.i][u.j]));
+    }
+
+    bool is_available_when_arrival(const Pos &u, const vector<Kinton_Cloud> &kintons)
+    {
+        int id = map[u.i][u.j].id;
+
+        return (kintons[id].time < calculate_rounds(costs[u.i][u.j]));
+    }
+
+    int calculate_rounds(int cost)
+    {
+        int rounds = cost * 2;
+
+        if(has_kinton(gme.type))
+        {
+            if(gme.kinton >= rounds)
+                return cost;
+            
+            return rounds - gme.kinton;
+        }
+
+        return rounds;
     }
 
     /**
@@ -551,7 +612,7 @@ struct PLAYER_NAME : public Player {
         Path kin_obj(kin.end, obj.otype);
         double heuristic = double(kin.size) + (double(kin_obj.size) / 2.0);
 
-        return (heuristic <= 2.0 * double(obj.size));
+        return (heuristic <= 1.7 * double(obj.size));
     }
 
     /**
@@ -659,7 +720,10 @@ struct PLAYER_NAME : public Player {
     virtual void play()
     {
         if(round() == 0)
+        {
             inst = this;
+            analyze_map();
+        }
 
         gme = goku(me()); // Player goku shortcut
         path = Path(); // Clear the current path
@@ -679,6 +743,58 @@ struct PLAYER_NAME : public Player {
             else
                 move(get_direction_to(path.first));
         }
+    }
+
+    void analyze_map()
+    {
+        map = Map(rows(), vector<TempCell>(cols()));
+
+        for(int i = 0; i < rows(); ++i)
+        {
+            for(int j = 0; j < cols(); ++j)
+            {
+                CType cell_type = cell(i, j).type;
+
+                if(cell_type != Bean and cell_type != Kinton)
+                    continue;
+
+                int id;
+
+                if(cell_type == Bean)
+                    id = find_id(Pos(i, j), cell_type);
+                else
+                    id = find_id(Pos(i, j), cell_type);
+
+                map[i][j].id = id;
+                map[i][j].type = cell_type;
+            }
+        }
+    }
+
+    int find_id(const Pos &p, CType type)
+    {
+        if(type == Bean)
+            return find_id(p, beans());
+        
+        return find_id(p, kintons());
+    }
+
+    int find_id(const Pos &p, const vector<Magic_Bean> &beans)
+    {
+        for(int i = 0; i < nb_beans(); ++i)
+            if(beans[i].pos == p)
+                return i;
+
+        return -1;
+    }
+
+    int find_id(const Pos &p, const vector<Kinton_Cloud> &kintons)
+    {
+        for(int i = 0; i < nb_kintons(); ++i)
+            if(kintons[i].pos == p)
+                return i;
+
+        return -1;
     }
 
     /**
