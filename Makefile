@@ -1,6 +1,6 @@
 PLAYERS = ChunkyBacon.o ChunkyBacon2.o ChunkyBacon3.o ChunkyBacon4.o EDI0.o EDI1.o Demo.o Tonto.o
 PLAYERS += Meteor0.o Meteor1.o Ultimate2.o Ultimate3.o
-PLAYERS += IO.o
+PLAYERS += IO.o I0.o I1.o ION.o
 
 # Do not modify past this point.
 
@@ -26,7 +26,7 @@ BolaDeDrac: BackTrace.o Utils.o PosDir.o Board.o Action.o Player.o Registry.o Ga
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 play: all
-	./BolaDeDrac IO Meteor1 Meteor1 IO -i zigzag.cnf -o game.bdd
+	./BolaDeDrac ION ION I1 I1 -i jaumebosch1.cnf -o game.bdd
 
 view:
 	./viewer.sh game.bdd

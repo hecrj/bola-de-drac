@@ -9,8 +9,8 @@ using namespace std;
  * Write the name of your player and save this file
  * with the same name and .cc extension.
  */
-#define PLAYER_NAME IO
-#define PLAYER_NAME_STRING "IO"
+#define PLAYER_NAME I0
+#define PLAYER_NAME_STRING "I0"
 
 /**
  * Estimated minimum number of rounds for collecting a ball.
@@ -561,7 +561,7 @@ struct PLAYER_NAME : public Player {
         if(obj.empty())
             return true;
 
-        Path kin_obj(kin.end, obj.otype);
+        Path kin_obj(kin, obj.otype);
         double heuristic = double(kin.size) + (double(kin_obj.size) / 2.0);
 
         return (heuristic <= 2.0 * double(obj.size));
@@ -584,7 +584,7 @@ struct PLAYER_NAME : public Player {
         if(obj.empty())
             return true;
 
-        Path alt_obj(alt.end, obj.otype);
+        Path alt_obj(alt, obj.otype);
         double heuristic = double(alt.size + alt_obj.size) / 2.0;
 
         return (heuristic <= (1.5 - m) * 1.5 * double(obj.size) / 2.0);
@@ -841,7 +841,7 @@ struct PLAYER_NAME : public Player {
         if(gid < 0)
             return false;
 
-        return is_stronger_than(goku(gid));
+        return (not is_stronger_than(goku(gid)));
     }
     
 };
