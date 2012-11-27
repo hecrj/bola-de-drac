@@ -20,7 +20,7 @@ if [  $UNAME = "Linux" ] ; then
         echo "Cannot find a browser"
     fi
 elif [ $UNAME = "Darwin" ] ; then
-    open -a "Google Chrome" --args --allow-file-access-from-files file://`pwd`/viewer.html?game=$1
+    open -a "Chromium" --args --allow-file-access-from-files file://`pwd`/viewer.html?game=$1
 else
     echo "Unrecognized system"
 fi

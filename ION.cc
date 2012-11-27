@@ -30,7 +30,7 @@ using namespace std;
 /**
  * Minimum probability to throw a kame.
  */
-#define KAME_MIN_PROB                  0.75
+#define KAME_MIN_PROB                  0
 
 /**
  * Priorities (smaller indicates more priority).
@@ -38,7 +38,7 @@ using namespace std;
 #define PRIORITY_NORMAL_BEAN                1
 #define PRIORITY_WITH_BALL_BEAN             1.5
 #define PRIORITY_KINTON_NORMAL_BEAN         1.5
-#define PRIORITY_KINTON_NORMAL_KINTON       0.5
+#define PRIORITY_KINTON_NORMAL_KINTON       0.8
 #define PRIORITY_KINTON_WITH_BALL_BEAN      1.5
 #define PRIORITY_KINTON_WITH_BALL_KINTON    1
 
@@ -564,6 +564,51 @@ struct PLAYER_NAME : public Player {
             double(1 + max_strength() - kamehame_penalty());
     }
 
+    vector<Dir> complement(Dir d)
+    {
+        vector<Dir> c(2);
+
+        switch(d)
+        {
+            case Top:
+            case Bottom:
+                c[0] = Left;
+                c[1] = Right;
+                break;
+
+            default:
+                c[0] = Top;
+                c[1] = Bottom;
+                break;
+        }
+
+        return c;
+    }
+
+    bool collision_detected()
+    {
+        Dir d = get_direction_to(path.first);
+
+        vector<Dir> c = complement(d);
+
+        Pos p = path.first + d;
+
+        for(int i = 0; i < 2; ++i)
+        {
+            int gid = cell(p + c[i]).id;
+            
+            if(gid < 0)
+                continue;
+
+            Goku g = goku(gid);
+
+            if(not is_stronger_than(g))
+                return true;
+        }
+
+        return false;
+    }
+
     /**
      * Play method.
      * 
@@ -592,15 +637,14 @@ struct PLAYER_NAME : public Player {
             if(path.empty())
                 wander();
 
-            cout << path.first << endl;
             if(objectives_detected(kame))
                 throw_kamehame(kame);
 
+            else if(collision_detected())
+                move(None);
+
             else
-            {
-                cout << path.first << " " << path.size << endl;
                 move(get_direction_to(path.first));
-            }
         }
     }
 
@@ -723,7 +767,7 @@ struct PLAYER_NAME : public Player {
 
         Path alt_obj(alt, obj.otype);
 
-        return (alt_obj.size <= (1.5 - m) * double(obj.size));
+        return (alt_obj.size * m <= obj.size);
     }
 
     void go_on_foot(CType obj, double priority)
@@ -742,7 +786,7 @@ struct PLAYER_NAME : public Player {
         Path kinton(gme, Kinton);
         Path bean_obj;
 
-        double heuristic = strength_prop(gme) / (2.0 - PRIORITY_KINTON_BEAN_MOD);
+        double heuristic = strength_prop(gme);
 
         if(kamehame_penalty() > gme.strength)
             heuristic /= PRIORITY_KINTON_BEAN_KAME_MOD;
