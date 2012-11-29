@@ -9,46 +9,46 @@ using namespace std;
  * Write the name of your player and save this file
  * with the same name and .cc extension.
  */
-#define PLAYER_NAME ION
-#define PLAYER_NAME_STRING "ION"
+#define PLAYER_NAME Thor
+#define PLAYER_NAME_STRING "Thor"
 
 /**
  * Estimated minimum number of rounds for collecting a ball.
  */
-#define ROUNDS_PER_BALL                30.0
+#define ROUNDS_PER_BALL                     30.0
 
 /**
  * Dangerous area around the player.
  */
-#define PLAYER_SAFE_RADIUS             5
+#define PLAYER_SAFE_RADIUS                  5
 
  /**
   * Dangerous area around the objective.
   */
-#define OBJECTIVE_SAFE_RADIUS          8
+#define OBJECTIVE_SAFE_RADIUS               8
 
 /**
  * Minimum probability to throw a kame.
  */
-#define KAME_MIN_PROB                  0.75
+#define KAME_MIN_PROB                       0
 
-#define MAX_COLLISION_WAIT              3
+#define MAX_COLLISION_WAIT                  3
 
 /**
  * Priorities (smaller indicates more priority).
  */
 #define PRIORITY_NORMAL_BEAN                1
 #define PRIORITY_WITH_BALL_BEAN             1.5
-#define PRIORITY_KINTON_NORMAL_BEAN         1
-#define PRIORITY_KINTON_NORMAL_KINTON       0.5
+#define PRIORITY_KINTON_NORMAL_BEAN         1.5
+#define PRIORITY_KINTON_NORMAL_KINTON       0.8
 #define PRIORITY_KINTON_WITH_BALL_BEAN      1.5
 #define PRIORITY_KINTON_WITH_BALL_KINTON    1
 
 /**
  * Priority modifiers
  */
-#define PRIORITY_KINTON_BEAN_MOD       0.7
-#define PRIORITY_KINTON_BEAN_KAME_MOD  2
+#define PRIORITY_KINTON_BEAN_MOD            0.7
+#define PRIORITY_KINTON_BEAN_KAME_MOD       2
 
 /**
  * Player struct!
@@ -106,9 +106,19 @@ struct PLAYER_NAME : public Player {
         Pos end;
 
         /**
-         * Size of the path (distance until end).
+         * Size of the path (rounds to follow the path).
          */
+        int trounds;
+        int wrounds;
+        int cost;
         int size;
+        bool ghost;
+
+
+        /**
+         * Kinton time after following the path.
+         */
+        int kinton;
 
         /**
          * Default constructor (empty path).
@@ -117,20 +127,40 @@ struct PLAYER_NAME : public Player {
         :   otype(Empty),
             first(-1, -1),
             end(-1, -1),
-            size(0)
+            trounds(0),
+            wrounds(0),
+            cost(0),
+            size(0),
+            kinton(0)
         {   }
 
-        /**
-         * Constructor given an objective type.
-         * @param  type Objective type.
-         * @return      A new path with the given objective path.
-         */
         inline Path (CType type)
         :   otype(type),
             first(-1, -1),
             end(-1, -1),
+            trounds(0),
+            wrounds(0),
+            cost(0),
+            size(0),
+            kinton(0)
+        {
+            
+        }
+
+        inline Path(const Goku &g)
+        :   otype(Empty),
+            trounds(0),
+            wrounds(0),
+            cost(0),
             size(0)
-        {   }
+        {
+            first = end = g.pos;
+
+            if(has_kinton(g.type))
+                kinton = g.kinton;
+            else
+                kinton = 0;
+        }
 
         /**
          * Creates and searches for a path in the board.
@@ -139,33 +169,59 @@ struct PLAYER_NAME : public Player {
          * @return      A new path filled with info from the found path,
          *                empty if there is no path available.
          */
-        inline Path(const Pos &u, CType type)
+        inline Path(const Goku &g, CType type)
         :   otype(type),
             first(-1, -1),
             end(-1, -1),
-            size(0)
+            trounds(0),
+            wrounds(0),
+            cost(0),
+            size(0),
+            kinton(0)
         {
-            PLAYER_NAME::inst->search(u, 0, *this);
+            Path root(g);
+
+            PLAYER_NAME::inst->search(root, *this);
         }
 
         inline Path(const Path &p, CType type)
         :   otype(type),
             first(-1, -1),
             end(-1, -1),
-            size(0)
+            trounds(0),
+            wrounds(0),
+            cost(0),
+            size(0),
+            kinton(0)
         {
-            int relative_rounds = PLAYER_NAME::inst->calculate_rounds(p.size, 0);
-
-            PLAYER_NAME::inst->search(p.end, relative_rounds, *this);
+            PLAYER_NAME::inst->search(p, *this);
         }
 
         /**
          * Tells whether the path is empty or not.
          * @return True if path is empty, false otherwise.
          */
-        bool empty()
+        bool empty() const
         {
             return (size == 0);
+        }
+
+        void set_size(const Path &root, int s)
+        {
+            size = s;
+
+            if(root.kinton >= size)
+            {
+                kinton += root.kinton - size;
+                trounds = size + root.cost;
+            }
+            else
+            {
+                trounds = (size * 2) + root.cost - root.kinton;
+
+                if(trounds % 2 == 0)
+                    trounds += 1;
+            }
         }
     };
 
@@ -213,34 +269,41 @@ struct PLAYER_NAME : public Player {
      * @param  path Path with objective where to store the found path
      * @return      True if a path is found, false otherwise
      */
-    bool search(const Pos &p, int rel_rounds, Path &path)
+    bool search(const Path &root, Path &path)
     {
-        costs = CostTable(rows(), vector<int>(cols(), numeric_limits<int>::max()));
+        path.cost = maxint;
+        costs = CostTable(rows(), vector<int>(cols(), maxint));
+
         prev_pos = PrevPosTable(rows(), vector<Pos>(cols()));
         pending = queue<Pos>();
 
+        Pos p = root.first;
         costs[p.i][p.j] = 0;
         pending.push(p);
+
+        Path current(path.otype);
 
         while(not pending.empty())
         {
             Pos u = pending.front();
             pending.pop();
 
-            if(cell(u).type == path.otype)
-            {
-                generate_path(u, path);
-                return true;
-            }
+            current.set_size(root, costs[u.i][u.j]);
 
-            if(map[u.i][u.j].type == path.otype)
+            if(found(u, current))
             {
-                if(is_available_when_arrival(u, path.otype, rel_rounds))
+                if(path.ghost)
+                    set_wrounds(current, map[u.i][u.j].id);
+
+                if(is_better(current, path))
                 {
-                    generate_path(u, path);
-                    return true;
+                    path = current;
+                    path.end = u;
                 }
             }
+
+            if(current.trounds > path.cost)
+                break;
 
             for(int i = Top; i <= Right; ++i)
             {
@@ -254,44 +317,56 @@ struct PLAYER_NAME : public Player {
             }
         }
 
+        generate_path(path);
+        return (not path.empty());
+    }
+
+    bool found(const Pos &u, Path &path)
+    {
+        if(cell(u).type == path.otype)
+        {
+            path.ghost = false;
+            return true;
+        }
+
+        if(map[u.i][u.j].type == path.otype)
+        {
+            path.ghost = true;
+            return true;
+        }
+
         return false;
     }
 
-    bool is_available_when_arrival(const Pos &u, CType type, int rel_rounds)
+    void set_wrounds(Path &path, int item)
     {
-        if(type == Bean)
-            return is_available_when_arrival(u, beans(), rel_rounds);
-        
-        return is_available_when_arrival(u, kintons(), rel_rounds);
+        int rtime;
+
+        if(path.otype == Bean)
+            rtime = (beans()[item]).time;
+        else
+            rtime = (kintons()[item]).time;
+
+        path.wrounds = rtime - path.trounds;
     }
 
-    bool is_available_when_arrival(const Pos &u, const vector<Magic_Bean> &beans, int rel_rounds)
+    int abs(int x)
     {
-        int id = map[u.i][u.j].id;
+        if(x < 0)
+            return -x;
 
-        return (beans[id].time < calculate_rounds(costs[u.i][u.j], rel_rounds));
+        return x;
     }
 
-    bool is_available_when_arrival(const Pos &u, const vector<Kinton_Cloud> &kintons, int rel_rounds)
+    bool is_better(const Path &current, const Path &best)
     {
-        int id = map[u.i][u.j].id;
+        if(best.empty())
+            return true;
 
-        return (kintons[id].time < calculate_rounds(costs[u.i][u.j], rel_rounds));
-    }
+        if(not best.ghost)
+            return current.ghost;
 
-    int calculate_rounds(int cost, int rel_rounds)
-    {
-        int rounds = cost * 2;
-
-        if(has_kinton(gme.type))
-        {
-            if(gme.kinton >= (rounds + rel_rounds))
-                return cost;
-            
-            return rounds + rel_rounds - gme.kinton;
-        }
-
-        return rounds + rel_rounds;
+        return (abs(current.wrounds) < abs(best.wrounds));
     }
 
     /**
@@ -376,15 +451,24 @@ struct PLAYER_NAME : public Player {
      * @param u The last position of the path.
      * @param p Empty path where to update data.
      */
-    void generate_path(Pos u, Path &p)
+    void generate_path(Path &p)
     {
-        p.size = costs[u.i][u.j];
-        p.end = u;
+        Pos u = p.end;
 
         for(int i = 1; i < p.size; ++i)
+        {
             u = prev_pos[u.i][u.j];
+        }
         
         p.first = u;
+
+        if(p.otype == Kinton)
+            p.kinton += kinton_life_time();
+
+        p.cost = p.trounds;
+
+        if(p.wrounds > 0)
+            p.cost += p.wrounds;
     }
 
     /**
@@ -447,7 +531,7 @@ struct PLAYER_NAME : public Player {
      */
     double goku_score(int goku_id, bool inside)
     {
-        if(is_ally(goku_id))
+        if(name(goku_id) == PLAYER_NAME_STRING)
             return 0;
 
         Goku g = goku(goku_id);
@@ -464,19 +548,6 @@ struct PLAYER_NAME : public Player {
             g_score *= 2.0;
         
         return g_score;
-    }
-
-    bool is_ally(int goku_id)
-    {
-        string goku_name = name(goku_id);
-        
-        if(goku_name == PLAYER_NAME_STRING)
-            return true;
-
-        if(goku_name == "UltimateCR5")
-            return true;
-
-        return false;
     }
 
     /**
@@ -530,7 +601,7 @@ struct PLAYER_NAME : public Player {
         double a = double(1 + gme.strength);
         double b = double(2 + gme.strength + g.strength);
 
-        return (a/b >= 0.8);
+        return (a/b >= 0.75);
     }
 
     /**
@@ -563,122 +634,6 @@ struct PLAYER_NAME : public Player {
     }
 
     /**
-     * Tells whether a path to a kinton kin is awesome for
-     * an objective path. 
-     * @param  kin Path to a kinton
-     * @param  obj Path to an objective
-     * @return     True if kinton is awesome!
-     *                  False otherwise D:
-     */
-    bool is_kinton_awesome_for(Path &kin, Path &obj)
-    {
-        if(kin.empty())
-            return false;
-
-        if(obj.empty())
-            return true;
-
-        Path kin_obj(kin, obj.otype);
-        double heuristic = double(kin.size) + (double(kin_obj.size) / 2.0);
-
-        return (heuristic <= 2.0 * double(obj.size));
-    }
-
-    /**
-     * Tells whether is better to go to an alternative path
-     * than go to the objective directly, when on kinton.
-     * @param  alt Alternative path to test
-     * @param  obj Objective path
-     * @param  m   Some external heuristic. The greater the less probability
-     *             to choose the alternative path.
-     * @return     True if the alternative path is better, false otherwise.
-     */
-    bool is_better_on_kinton(Path &alt, Path &obj, double m)
-    {
-        if(alt.empty())
-            return false;
-
-        if(obj.empty())
-            return true;
-
-        Path alt_obj(alt, obj.otype);
-        double heuristic = double(alt.size + alt_obj.size) / 2.0;
-
-        return (heuristic <= (1.5 - m) * 1.5 * double(obj.size) / 2.0);
-    }
-
-    /**
-     * Tells whether is better to go to an alternative path
-     * than go to the objective directly.
-     * @param  alt Alternative path to test
-     * @param  obj Objective path
-     * @param  m   Some external heuristic. The greater the less probability
-     *             to choose the alternative path.
-     * @return     True if the alternative path is better, false otherwise.
-     */
-    bool is_better(Path &alt, Path &obj, double m)
-    {
-        if(alt.empty())
-            return false;
-
-        if(obj.empty())
-            return true;
-
-        Path alt_obj(alt, obj.otype);
-        double heuristic = double(alt.size + alt_obj.size);
-
-        return (heuristic * m <= double(obj.size) * (2.0 - m));
-    }
-
-    Path choose_path(CType a, CType b, double h)
-    {
-        Path p1(gme.pos, a);
-        Path p2(gme.pos, b);
-
-        if(has_kinton(gme.type))
-        {
-            if(is_better_on_kinton(p1, p2, h))
-                return p1;
-            
-            return p2;
-        }
-        
-        if(is_better(p1, p2, h))
-            return p1;
-        
-        return p2;
-    }
-
-    void go_on_foot(CType obj, double priority)
-    {
-        Path kinton(gme.pos, Kinton);
-        Path bean_obj = choose_path(Bean, obj, strength_prop(gme) * priority);
-
-        if(is_kinton_awesome_for(kinton, bean_obj))
-            set_path(kinton);
-        else
-            set_path(bean_obj);
-    }
-
-    void go_on_kinton(CType obj, double pbean, double pkinton)
-    {
-        Path kinton(gme.pos, Kinton);
-        Path bean_obj;
-
-        double heuristic = strength_prop(gme) / (2.0 - PRIORITY_KINTON_BEAN_MOD);
-
-        if(kamehame_penalty() > gme.strength)
-            heuristic /= PRIORITY_KINTON_BEAN_KAME_MOD;
-
-        bean_obj = choose_path(Bean, obj, heuristic * pbean);
-
-        if(is_better_on_kinton(kinton, bean_obj, kinton_life_prop() * pkinton))
-            set_path(kinton);
-        else
-            set_path(bean_obj);
-    }
-
-    /**
      * Play method.
      * 
      * This method will be invoked once per each round.
@@ -692,6 +647,7 @@ struct PLAYER_NAME : public Player {
         {
             inst = this;
             collision_wait = 0;
+
             analyze_map();
         }
 
@@ -709,9 +665,6 @@ struct PLAYER_NAME : public Player {
 
             if(objectives_detected(kame))
                 throw_kamehame(kame);
-
-            else if(collision_detected())
-                move(None);
 
             else
                 move(get_direction_to(path.first));
@@ -795,6 +748,83 @@ struct PLAYER_NAME : public Player {
         }
     }
 
+    Path choose_path(CType a, CType b, double h)
+    {
+        Path p1(gme, a);
+        Path p2(gme, b);
+
+        if(p1.empty())
+            return p2;
+
+        if(p2.empty())
+            return p1;
+
+        Path alt(p1, b);
+
+        if(alt.cost * h <= p2.cost)
+            return p1;
+        else
+            return p2;
+    }
+
+    bool is_kinton_awesome_for(Path &kin, Path &obj)
+    {
+        if(kin.empty())
+            return false;
+
+        if(obj.empty())
+            return true;
+
+        Path kin_obj(kin, obj.otype);
+
+        return (kin_obj.cost <= 1.5 * double(obj.cost));
+    }
+
+    bool is_better_on_kinton(Path &alt, Path &obj, double m)
+    {
+        if(alt.empty())
+            return false;
+
+        if(obj.empty())
+            return true;
+
+        Path alt_obj(alt, obj.otype);
+
+        cout << alt_obj.otype << " " << alt_obj.end << endl;
+        cout << round() << " " << alt_obj.cost << " " << alt_obj.wrounds << " " << obj.cost << endl;
+
+        return (alt_obj.cost * m <= obj.cost);
+    }
+
+    void go_on_foot(CType obj, double priority)
+    {
+        Path kinton(gme, Kinton);
+        Path bean_obj = choose_path(Bean, obj, strength_prop(gme) * priority);
+
+        if(is_kinton_awesome_for(kinton, bean_obj))
+            set_path(kinton);
+        else
+            set_path(bean_obj);
+    }
+
+    void go_on_kinton(CType obj, double pbean, double pkinton)
+    {
+        Path kinton(gme, Kinton);
+        Path bean_obj;
+
+        double heuristic = strength_prop(gme);
+
+        if(kamehame_penalty() > gme.strength)
+            heuristic /= PRIORITY_KINTON_BEAN_KAME_MOD;
+
+        bean_obj = choose_path(Bean, obj, heuristic * pbean);
+
+        if(is_better_on_kinton(kinton, bean_obj, kinton_life_prop() * pkinton))
+            set_path(kinton);
+        else
+            set_path(bean_obj);
+    }
+
     void collect_balls_normal()
     {
         go_on_foot(Ball, PRIORITY_NORMAL_BEAN);
@@ -862,117 +892,7 @@ struct PLAYER_NAME : public Player {
         if(gid < 0)
             return false;
 
-        if(is_ally(gid))
-            return false;
-
         return (not is_stronger_than(goku(gid)));
-    }
-
-    bool collision_detected()
-    {
-        if(collision_wait >= MAX_COLLISION_WAIT)
-        {
-            collision_wait = 0;
-            return false;
-        }
-
-        Dir d = get_direction_to(path.first);
-
-        vector<Dir> c = complement(d);
-
-        for(int i = 0; i < 2; ++i)
-        {
-            if(collision_detected(path.first, c[i]))
-            {
-                collision_wait++;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    bool collision_detected(Pos p, Dir d)
-    {
-        p += d;
-
-        if(collision_detected_near(p))
-            return true;
-
-        p += d;
-
-        if(collision_detected_far(p))
-            return true;
-
-        return false;
-    }
-
-    bool has_goku(const Pos &p, Goku &g)
-    {
-        if(not pos_ok(p) or cell(p).type == Rock)
-            return false;
-
-        int gid = cell(p).id;
-
-        if(gid < 0)
-            return false;
-
-        g = goku(gid);
-
-        return true;
-    }
-
-    bool collision_detected_near(const Pos &p)
-    {
-        Goku g;
-
-        if(not has_goku(p, g))
-            return false;
-
-        if(is_stronger_than(g))
-            return false;
-
-        if(not has_kinton(gme.type))
-            return true;
-
-        return has_kinton(g.type);
-    }
-
-    bool collision_detected_far(const Pos &p)
-    {
-        Goku g;
-
-        if(not has_goku(p, g))
-            return false;
-
-        if(is_stronger_than(g))
-            return false;
-
-        if(has_kinton(gme.type))
-            return false;
-
-        return has_kinton(g.type);
-    }
-
-    vector<Dir> complement(Dir d)
-    {
-        vector<Dir> c(2);
-
-        switch(d)
-        {
-            case Top:
-            case Bottom:
-                c[0] = Left;
-                c[1] = Right;
-                break;
-
-            default:
-                c[0] = Top;
-                c[1] = Bottom;
-                break;
-        }
-
-        return c;
     }
     
 };
