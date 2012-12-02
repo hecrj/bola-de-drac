@@ -9,49 +9,34 @@ using namespace std;
  * Write the name of your player and save this file
  * with the same name and .cc extension.
  */
-#define PLAYER_NAME Thor
-#define PLAYER_NAME_STRING "Thor"
+#define PLAYER_NAME                 Thor
+#define PLAYER_NAME_STRING          "Thor"
 
-/**
- * Estimated minimum number of rounds for collecting a ball.
- */
-#define ROUNDS_PER_BALL                     30.0
+#define ROUNDS_PER_BALL             30.0
+#define PLAYER_SAFE_RADIUS          5
+#define OBJECTIVE_SAFE_RADIUS       8
+#define KAME_MIN_PROB               0
+#define MAX_COLLISION_WAIT          3
 
-/**
- * Dangerous area around the player.
- */
-#define PLAYER_SAFE_RADIUS                  5
+#define NUM_MAPS                    3
+#define MAP_DEFAULT                 0
+#define MAP_ZIGZAG                  1
+#define MAP_JBOSCH1                 2
 
- /**
-  * Dangerous area around the objective.
-  */
-#define OBJECTIVE_SAFE_RADIUS               8
+#define NUM_PRIORITIES              10
+#define NORMAL_KINTON               0
+#define NORMAL_BEAN                 1
+#define WITH_BALL_BEAN              2
+#define KINTON_NORMAL_BEAN          3
+#define KINTON_NORMAL_KINTON        4
+#define KINTON_WITH_BALL_BEAN       5
+#define KINTON_WITH_BALL_KINTON     6
+#define KINTON_BEAN_KAME_MOD        7
+#define KINTON_BETTER_MOD           8
 
-/**
- * Minimum probability to throw a kame.
- */
-#define KAME_MIN_PROB                       0
-
-#define MAX_COLLISION_WAIT                  3
-
-/**
- * Priorities
- */
-#define NUM_MAPS        3
-#define MAP_DEFAULT     0
-#define MAP_ZIGZAG      1
-#define MAP_JBOSCH1     2
-
-#define NUM_PRIORITIES             10
-#define NORMAL_KINTON              0
-#define NORMAL_BEAN                1
-#define WITH_BALL_BEAN             2
-#define KINTON_NORMAL_BEAN         3
-#define KINTON_NORMAL_KINTON       4
-#define KINTON_WITH_BALL_BEAN      5
-#define KINTON_WITH_BALL_KINTON    6
-#define KINTON_BEAN_KAME_MOD       7
-#define KINTON_BETTER_MOD          8
+#define STATUS_DEFAULT              0
+#define STATUS_THREAT               1
+#define STATUS_KAME_FRONT           2
 
 /**
  * Player struct!
@@ -118,6 +103,7 @@ struct PLAYER_NAME : public Player {
         int cost;
         int size;
         bool ghost;
+        int temp_id;
 
 
         /**
@@ -248,8 +234,7 @@ struct PLAYER_NAME : public Player {
     Map map;
 
     int map_id;
-    int threat_round;
-    int kame_round;
+    int wait_round;
 
     /**
      * Path that the player must follow.
@@ -322,11 +307,10 @@ struct PLAYER_NAME : public Player {
                 {
                     prev_pos[v.i][v.j] = u;
                     pending.push(v);   
-                }       
+                }
             }
         }
 
-        
         return (not path.empty());
     }
 
@@ -360,6 +344,8 @@ struct PLAYER_NAME : public Player {
 
         if(path.kinton == 0 and (round() + path.wrounds) % 2 != 0)
             path.wrounds += 1;
+
+        path.temp_id = item;
     }
 
     void calculate_cost(Path &path)
@@ -681,8 +667,7 @@ struct PLAYER_NAME : public Player {
         if(round() == 0)
         {
             inst = this;
-            threat_round = 0;
-            kame_round = 0;
+            wait_round = 0;
 
             detect_map();
             analyze_map();
@@ -707,8 +692,12 @@ struct PLAYER_NAME : public Player {
             {
                 if(should_wait() or threat_detected())
                     move(None);
+
                 else
+                {
                     move(get_direction_to(path.first));
+                    wait_round = round();
+                }
             }
         }
     }
@@ -721,7 +710,14 @@ struct PLAYER_NAME : public Player {
         if(get_direction_to(path.end) == None)
             return false;
 
-        if(path.wrounds < 0)
+        int rtime;
+
+        if(path.otype == Bean)
+            rtime = beans()[path.temp_id].time;
+        else
+            rtime = kintons()[path.temp_id].time;
+
+        if(rtime <= 0)
             return false;
 
         return true;
@@ -750,6 +746,9 @@ struct PLAYER_NAME : public Player {
 
     bool threat_detected()
     {
+        if(round() - wait_round > goku_regen_time())
+            return false;
+
         vector<Dir> d = complement(get_direction_to(path.first));
 
         for(int i = 0; i < 2; ++i)
@@ -1001,6 +1000,9 @@ struct PLAYER_NAME : public Player {
 
     bool kame_to_front(Dir &kame)
     {
+        if(round() - wait_round > goku_regen_time())
+            return false;
+
         kame = get_direction_to(path.first);
         int gid = cell(gme.pos + kame).id;
 
