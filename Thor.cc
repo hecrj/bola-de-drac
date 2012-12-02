@@ -1009,6 +1009,9 @@ struct PLAYER_NAME : public Player {
         if(gid < 0)
             return false;
 
+        if(is_ally(gid))
+            return false;
+
         return (prob_win_fight(goku(gid)) < 0.75);
     }
     

@@ -27,7 +27,7 @@ BolaDeDrac: BackTrace.o Utils.o PosDir.o Board.o Action.o Player.o Registry.o Ga
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 play: all
-	./BolaDeDrac I1 I0 ThorTest Thor -i santialbo.cnf -o game.bdd
+	./BolaDeDrac I1 I0 ThorTest Thor -i demo.cnf -o game.bdd
 
 view:
 	./viewer.sh game.bdd
