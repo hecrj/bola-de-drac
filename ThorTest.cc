@@ -9,8 +9,8 @@ using namespace std;
  * Write the name of your player and save this file
  * with the same name and .cc extension.
  */
-#define PLAYER_NAME Thor
-#define PLAYER_NAME_STRING "Thor"
+#define PLAYER_NAME ThorTest
+#define PLAYER_NAME_STRING "ThorTest"
 
 /**
  * Estimated minimum number of rounds for collecting a ball.
@@ -248,8 +248,6 @@ struct PLAYER_NAME : public Player {
     Map map;
 
     int map_id;
-    int threat_round;
-    int kame_round;
 
     /**
      * Path that the player must follow.
@@ -271,6 +269,8 @@ struct PLAYER_NAME : public Player {
      * It is updated in every radar/path search.
      */
     queue<Pos> pending;
+
+    int collision_wait;
 
     /**
      * Searches for a path in the board.
@@ -475,29 +475,24 @@ struct PLAYER_NAME : public Player {
     {
         Pos u = path.end;
 
-        for(int i = 1; i <= path.size; ++i)
+        for(int i = 1; i < path.size; ++i)
         {
             int gid = cell(u).id;
 
             if(gid >= 0 and not is_ally(gid))
             {
-                double pfight = prob_win_fight(goku(gid));
-                
-                if(pfight < 0.75)
+                if(prob_win_fight(goku(gid)) < 0.75)
                 {
-                    int extra_rounds = double(goku_regen_time()) + 10.0 * pfight;
-
                     if(path.wrounds < 0)
-                        path.wrounds -= extra_rounds;
+                        path.wrounds -= goku_regen_time();
                     else
-                        path.wrounds += extra_rounds;
+                        path.wrounds += goku_regen_time();
 
-                    costs[path.end.i][path.end.j] += extra_rounds;
+                    costs[path.end.i][path.end.j] += goku_regen_time();
                 }
             }
 
-            if(i < path.size)
-                u = prev_pos[u.i][u.j];
+            u = prev_pos[u.i][u.j];
         }
         
         path.first = u;
@@ -681,8 +676,7 @@ struct PLAYER_NAME : public Player {
         if(round() == 0)
         {
             inst = this;
-            threat_round = 0;
-            kame_round = 0;
+            collision_wait = 0;
 
             detect_map();
             analyze_map();
@@ -760,7 +754,7 @@ struct PLAYER_NAME : public Player {
             {
                 int gid = cell(u).id;
 
-                if(gid >= 0 and not is_ally(gid) and status(gid) != 1.0)
+                if(gid >= 0 and not is_ally(gid))
                 {   
                     Goku g = goku(gid);
 
