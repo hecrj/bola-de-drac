@@ -581,8 +581,8 @@ struct PLAYER_NAME : public Player {
         score = double(gme.balls) - potential_balls + strength_prop(gme);
 
         vector<bool> gokus;
-        radar(path.end, 8, gokus);
-        radar(gme.pos, 3, gokus);
+        radar(path.end, OBJECTIVE_SAFE_RADIUS, gokus);
+        radar(gme.pos, PLAYER_SAFE_RADIUS, gokus);
 
         for(int i = Top; i <= Right; ++i)
         {
