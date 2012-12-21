@@ -23,7 +23,7 @@ using namespace std;
 #define MAP_ZIGZAG                  1
 #define MAP_JBOSCH1                 2
 
-#define NUM_PRIORITIES              10
+#define NUM_PRIORITIES              9
 #define NORMAL_KINTON               0
 #define NORMAL_BEAN                 1
 #define WITH_BALL_BEAN              2
@@ -33,10 +33,6 @@ using namespace std;
 #define KINTON_WITH_BALL_KINTON     6
 #define KINTON_BEAN_KAME_MOD        7
 #define KINTON_BETTER_MOD           8
-
-#define STATUS_DEFAULT              0
-#define STATUS_THREAT               1
-#define STATUS_KAME_FRONT           2
 
 /**
  * Player struct!
@@ -49,6 +45,12 @@ struct PLAYER_NAME : public Player {
      */
     static PLAYER_NAME* inst;
 
+    /**
+     * Player priorities for maps:
+     * 0: DEFAULT
+     * 1: ZIGZAG
+     * 2: JBOSCH1
+     */
     static double priorities[NUM_MAPS][NUM_PRIORITIES];
 
     /**
@@ -63,18 +65,36 @@ struct PLAYER_NAME : public Player {
      */
     typedef vector< vector<Pos> > PrevPosTable;
 
+    /**
+     * Represents a cell which has a temporary item (an item that
+     * regenerates).
+     */
     struct TempCell
     {
+        /**
+         * Id of the temporary item.
+         */
         int id;
+
+        /**
+         * Item type.
+         */
         CType type;
 
+        /**
+         * Default TempCell constructor
+         * @return A new empty TempCell
+         */
         inline TempCell ()
         :   id(-1),
             type(Empty)
         {   }
     };
 
-    typedef vector< vector<TempCell> > Map;
+    /**
+     * Represents the TempCells that a map contains.
+     */
+    typedef vector< vector<TempCell> > TempMap;
 
     /**
      * Represents a path in the board.
@@ -96,18 +116,39 @@ struct PLAYER_NAME : public Player {
         Pos end;
 
         /**
-         * Size of the path (rounds to follow the path).
+         * Travel time of the path (rounds to follow the path).
          */
         int trounds;
+
+        /**
+         * Rounds to wait (TempCell).
+         */
         int wrounds;
+
+        /**
+         * Total cost of the path.
+         */
         int cost;
+
+        /**
+         * Size of the path (number of cells).
+         */
         int size;
+
+        /**
+         * A ghost path is a path which objective isnt available at
+         * the current round.
+         */
         bool ghost;
+
+        /**
+         * Temporary item id of the objective.
+         */
         int temp_id;
 
 
         /**
-         * Kinton time after following the path.
+         * Kinton time left after following the path.
          */
         int kinton;
 
@@ -125,6 +166,11 @@ struct PLAYER_NAME : public Player {
             kinton(0)
         {   }
 
+        /**
+         * Creates a path with an objective.
+         * @param  type Type of the objective
+         * @return      Path with the objective type given
+         */
         inline Path (CType type)
         :   otype(type),
             first(-1, -1),
@@ -138,6 +184,11 @@ struct PLAYER_NAME : public Player {
             
         }
 
+        /**
+         * Path that represents the current position of a player.
+         * @param  g Goku of a player
+         * @return   Path for the goku g.
+         */
         inline Path(const Goku &g)
         :   otype(Empty),
             trounds(0),
@@ -154,11 +205,12 @@ struct PLAYER_NAME : public Player {
         }
 
         /**
-         * Creates and searches for a path in the board.
-         * @param  u    Search start position
-         * @param  type Objective type
-         * @return      A new path filled with info from the found path,
-         *                empty if there is no path available.
+         * Creates a path for the given player and uses it to
+         * found a path to an item of the given type.
+         * @param  g    Goku of a player
+         * @param  type Type of the objective
+         * @return      An empty path if no path is found,
+         *                 otherwise returns the best path found.
          */
         inline Path(const Goku &g, CType type)
         :   otype(type),
@@ -175,6 +227,14 @@ struct PLAYER_NAME : public Player {
             PLAYER_NAME::inst->search(root, *this);
         }
 
+        /**
+         * Uses the given path as root to find a new
+         * path to an item of the given type.
+         * @param  p    A path
+         * @param  type Type of the objective
+         * @return      An empty path if no path is found,
+         *                 otherwise returns the best path found.
+         */
         inline Path(const Path &p, CType type)
         :   otype(type),
             first(-1, -1),
@@ -197,6 +257,12 @@ struct PLAYER_NAME : public Player {
             return (size == 0);
         }
 
+        /**
+         * Sets the size of the current path, calculating
+         * costs given a root path.
+         * @param root A root path
+         * @param s    Size to set
+         */
         void set_size(const Path &root, int s)
         {
             size = s;
@@ -231,9 +297,20 @@ struct PLAYER_NAME : public Player {
      */
     Goku gme;
 
-    Map map;
+    /**
+     * Map of TempCells.
+     */
+    TempMap map;
 
+    /**
+     * Map where the player is fighting.
+     */
     int map_id;
+
+    /**
+     * Counter of rounds to not wait forever when avoiding
+     * or throwing kames.
+     */
     int wait_round;
 
     /**
@@ -259,7 +336,7 @@ struct PLAYER_NAME : public Player {
 
     /**
      * Searches for a path in the board.
-     * @param  p    Position where to start the search
+     * @param  root Path from which calculate the new one
      * @param  path Path with objective where to store the found path
      * @return      True if a path is found, false otherwise
      */
@@ -452,9 +529,7 @@ struct PLAYER_NAME : public Player {
     }
 
     /**
-     * Generates a path given the last position and
-     * an updated previous position table.
-     * @param u The last position of the path.
+     * Generates a path from the last position.
      * @param p Empty path where to update data.
      */
     void generate_path(Path &path)
@@ -465,6 +540,9 @@ struct PLAYER_NAME : public Player {
         {
             int gid = cell(u).id;
 
+            /**
+             * Avoids gokus. Prototype, it does not work properly sometimes.
+             */
             if(gid >= 0 and not is_ally(gid))
             {
                 double pfight = prob_win_fight(goku(gid));
@@ -545,9 +623,10 @@ struct PLAYER_NAME : public Player {
     }
 
     /**
-     * Updates the score of a kame direction for a goku found.
+     * Returns the score of a kame direction for a goku found.
      * @param goku_id Id of the goku found
      * @param inside  Whether the goku is inside dangerous areas or not.
+     * @return tTe score of a kame direction for a goku found.
      */
     double goku_score(int goku_id, bool inside)
     {
@@ -790,7 +869,7 @@ struct PLAYER_NAME : public Player {
 
     void analyze_map()
     {
-        map = Map(rows(), vector<TempCell>(cols()));
+        map = TempMap(rows(), vector<TempCell>(cols()));
 
         for(int i = 0; i < rows(); ++i)
         {
@@ -1020,24 +1099,10 @@ struct PLAYER_NAME : public Player {
 PLAYER_NAME* PLAYER_NAME::inst = NULL;
 
 double PLAYER_NAME::priorities[NUM_MAPS][NUM_PRIORITIES] = {
-    {1.0, 1.0, 1.5, 1.5, 0.8, 1.5, 1.0, 2.0, 0.0, 1.5}, // DEFAULT PRIORITIES
-    {1.0, 1.0, 4.0, 4.0, 4.0, 4.0, 5.0, 1.0, 0.1, 1.5}, // ZIGZAG PRIORITIES
-    {1.0, 1.0, 1.5, 2.5, 0.5, 3.0, 1.0, 1.0, 0.0, 1.5}
+    {1.0, 1.0, 1.5, 1.5, 0.8, 1.5, 1.0, 2.0, 0.0}, // DEFAULT
+    {1.0, 1.0, 4.0, 4.0, 4.0, 4.0, 5.0, 1.0, 0.1}, // ZIGZAG
+    {1.0, 1.0, 1.5, 2.5, 0.5, 3.0, 1.0, 1.0, 0.0}  // JBOSCH1
 };
-
-/*
-#define NUM_PRIORITIES             10
-#define NORMAL_KINTON              0
-#define NORMAL_BEAN                1
-#define WITH_BALL_BEAN             2
-#define KINTON_NORMAL_BEAN         3
-#define KINTON_NORMAL_KINTON       4
-#define KINTON_WITH_BALL_BEAN      5
-#define KINTON_WITH_BALL_KINTON    6
-#define KINTON_BEAN_KAME_MOD       7
-#define KINTON_BETTER_MOD          8
-#define KINTON_MULTIPLIER          9
-*/
 
 /**
  * Do not modify the following line.

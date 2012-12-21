@@ -9,49 +9,34 @@ using namespace std;
  * Write the name of your player and save this file
  * with the same name and .cc extension.
  */
-#define PLAYER_NAME Th0r
-#define PLAYER_NAME_STRING "Th0r"
+#define PLAYER_NAME                 Th0r
+#define PLAYER_NAME_STRING          "Th0r"
 
-/**
- * Estimated minimum number of rounds for collecting a ball.
- */
-#define ROUNDS_PER_BALL                     30.0
+#define ROUNDS_PER_BALL             30.0
+#define PLAYER_SAFE_RADIUS          5
+#define OBJECTIVE_SAFE_RADIUS       8
+#define KAME_MIN_PROB               0
+#define MAX_COLLISION_WAIT          3
 
-/**
- * Dangerous area around the player.
- */
-#define PLAYER_SAFE_RADIUS                  5
+#define NUM_MAPS                    3
+#define MAP_DEFAULT                 0
+#define MAP_ZIGZAG                  1
+#define MAP_JBOSCH1                 2
 
- /**
-  * Dangerous area around the objective.
-  */
-#define OBJECTIVE_SAFE_RADIUS               8
+#define NUM_PRIORITIES              10
+#define NORMAL_KINTON               0
+#define NORMAL_BEAN                 1
+#define WITH_BALL_BEAN              2
+#define KINTON_NORMAL_BEAN          3
+#define KINTON_NORMAL_KINTON        4
+#define KINTON_WITH_BALL_BEAN       5
+#define KINTON_WITH_BALL_KINTON     6
+#define KINTON_BEAN_KAME_MOD        7
+#define KINTON_BETTER_MOD           8
 
-/**
- * Minimum probability to throw a kame.
- */
-#define KAME_MIN_PROB                       0
-
-#define MAX_COLLISION_WAIT                  3
-
-/**
- * Priorities
- */
-#define NUM_MAPS        3
-#define MAP_DEFAULT     0
-#define MAP_ZIGZAG      1
-#define MAP_JBOSCH1     2
-
-#define NUM_PRIORITIES             10
-#define NORMAL_KINTON              0
-#define NORMAL_BEAN                1
-#define WITH_BALL_BEAN             2
-#define KINTON_NORMAL_BEAN         3
-#define KINTON_NORMAL_KINTON       4
-#define KINTON_WITH_BALL_BEAN      5
-#define KINTON_WITH_BALL_KINTON    6
-#define KINTON_BEAN_KAME_MOD       7
-#define KINTON_BETTER_MOD          8
+#define STATUS_DEFAULT              0
+#define STATUS_THREAT               1
+#define STATUS_KAME_FRONT           2
 
 /**
  * Player struct!
@@ -113,11 +98,13 @@ struct PLAYER_NAME : public Player {
         /**
          * Size of the path (rounds to follow the path).
          */
+        int grounds;
         int trounds;
         int wrounds;
         int cost;
         int size;
         bool ghost;
+        int temp_id;
 
 
         /**
@@ -246,8 +233,10 @@ struct PLAYER_NAME : public Player {
     Goku gme;
 
     Map map;
+    CostTable gcosts;
 
     int map_id;
+    int wait_round;
 
     /**
      * Path that the player must follow.
@@ -269,8 +258,6 @@ struct PLAYER_NAME : public Player {
      * It is updated in every radar/path search.
      */
     queue<Pos> pending;
-
-    int collision_wait;
 
     /**
      * Searches for a path in the board.
@@ -304,12 +291,11 @@ struct PLAYER_NAME : public Player {
                 if(current.ghost)
                     set_wrounds(current, map[u.i][u.j].id);
 
+                current.end = u;
+                generate_path(current);
+
                 if(is_better(current, path))
-                {
                     path = current;
-                    path.end = u;
-                    calculate_cost(path);
-                }
             }
 
             if(current.trounds > path.cost)
@@ -323,11 +309,10 @@ struct PLAYER_NAME : public Player {
                 {
                     prev_pos[v.i][v.j] = u;
                     pending.push(v);   
-                }       
+                }
             }
         }
 
-        generate_path(path);
         return (not path.empty());
     }
 
@@ -361,6 +346,8 @@ struct PLAYER_NAME : public Player {
 
         if(path.kinton == 0 and (round() + path.wrounds) % 2 != 0)
             path.wrounds += 1;
+
+        path.temp_id = item;
     }
 
     void calculate_cost(Path &path)
@@ -387,7 +374,7 @@ struct PLAYER_NAME : public Player {
         if(best.empty())
             return true;
 
-        return (abs(current.wrounds) < abs(best.wrounds));
+        return (abs(current.wrounds) + current.grounds < abs(best.wrounds) + best.grounds);
     }
 
     /**
@@ -472,16 +459,23 @@ struct PLAYER_NAME : public Player {
      * @param u The last position of the path.
      * @param p Empty path where to update data.
      */
-    void generate_path(Path &p)
+    void generate_path(Path &path)
     {
-        Pos u = p.end;
+        Pos u = path.end;
+        path.grounds = 0;
 
-        for(int i = 1; i < p.size; ++i)
+        for(int i = 1; i <= path.size; ++i)
         {
-            u = prev_pos[u.i][u.j];
+            path.grounds += gcosts[u.i][u.j];
+            costs[path.end.i][path.end.j] += gcosts[u.i][u.j];
+
+            if(i < path.size)
+                u = prev_pos[u.i][u.j];
         }
         
-        p.first = u;
+        path.first = u;
+
+        calculate_cost(path);
     }
 
     /**
@@ -544,7 +538,7 @@ struct PLAYER_NAME : public Player {
      */
     double goku_score(int goku_id, bool inside)
     {
-        if(name(goku_id) == PLAYER_NAME_STRING)
+        if(is_ally(goku_id))
             return 0;
 
         Goku g = goku(goku_id);
@@ -603,18 +597,19 @@ struct PLAYER_NAME : public Player {
         return (gme.alive and (has_kinton(gme.type) or round() % 2 == 0));
     }
 
-    /**
-     * Tells whether the player is stronger than g.
-     * @param  g Goku rival.
-     * @return   True if there is a considerable probability
-     *                to win a fight versus g, false otherwise.
-     */
-    bool is_stronger_than(const Goku &g)
+    double prob_win_fight(const Goku &g)
     {
         double a = double(1 + gme.strength);
         double b = double(2 + gme.strength + g.strength);
 
-        return (a/b >= 0.75);
+        return a/b;
+    }
+
+    bool is_ally(int gid)
+    {
+        string gname = name(gid);
+
+        return (gname == PLAYER_NAME_STRING or gname == "UltimateCR7");
     }
 
     /**
@@ -639,10 +634,10 @@ struct PLAYER_NAME : public Player {
      * Returns the player probability to throw a kamehame.
      * @return The probability to throw a kamehame.
      */
-    double prob_kame()
+    double prob_kame(const Goku &g)
     {
         return
-            double(1 + gme.strength - kamehame_penalty()) /
+            double(1 + g.strength - kamehame_penalty()) /
             double(1 + max_strength() - kamehame_penalty());
     }
 
@@ -659,7 +654,8 @@ struct PLAYER_NAME : public Player {
         if(round() == 0)
         {
             inst = this;
-            collision_wait = 0;
+            wait_round = 0;
+            gcosts = CostTable(rows(), vector<int>(cols(), 0));
 
             detect_map();
             analyze_map();
@@ -670,6 +666,7 @@ struct PLAYER_NAME : public Player {
 
         if(has_turn())
         {
+            analyze_gokus();
             collect_balls();
 
             Dir kame;
@@ -682,10 +679,65 @@ struct PLAYER_NAME : public Player {
 
             else
             {
-                if(should_wait())
+                if(should_wait() or threat_detected())
                     move(None);
+
                 else
+                {
                     move(get_direction_to(path.first));
+                    wait_round = round();
+                }
+            }
+        }
+    }
+
+    void analyze_gokus()
+    {
+        for(int i = 0; i < nb_players(); ++i)
+        {
+            if(i == gme.id)
+                continue;
+
+            Goku g = goku(i);
+
+            if(not g.alive)
+                continue;
+
+            double pfight = prob_win_fight(g);
+
+            if(pfight > 0.75)
+                continue;
+
+            update_gcosts(g, pfight, 5);
+        }
+    }
+
+    void update_gcosts(const Goku &g, double h, int r)
+    {
+        Pos p = g.pos;
+
+        costs = CostTable(rows(), vector<int>(cols(), numeric_limits<int>::max()));
+        pending = queue<Pos>();
+
+        costs[p.i][p.j] = 0;
+        pending.push(p);
+
+        while(not pending.empty())
+        {
+            Pos u = pending.front();
+            pending.pop();
+
+            if(costs[u.i][u.j] > r)
+                break;
+
+            gcosts[u.i][u.j] = double(goku_regen_time()) + double(r - costs[u.i][u.j]) + (10.0 * h);
+
+            for(int i = Top; i <= Right; ++i)
+            {
+                Pos v = u + static_cast<Dir>(i);
+
+                if(should_push(u, v))
+                    pending.push(v);
             }
         }
     }
@@ -698,10 +750,68 @@ struct PLAYER_NAME : public Player {
         if(get_direction_to(path.end) == None)
             return false;
 
-        if(path.wrounds < 0)
+        int rtime;
+
+        if(path.otype == Bean)
+            rtime = beans()[path.temp_id].time;
+        else
+            rtime = kintons()[path.temp_id].time;
+
+        if(rtime <= 0)
             return false;
 
         return true;
+    }
+
+    vector<Dir> complement(Dir d)
+    {
+        vector<Dir> c(2);
+
+        switch(d)
+        {
+            case Top:
+            case Bottom:
+                c[0] = Left;
+                c[1] = Right;
+                break;
+
+            default:
+                c[0] = Top;
+                c[1] = Bottom;
+                break;
+        }
+
+        return c;
+    }
+
+    bool threat_detected()
+    {
+        if(round() - wait_round > goku_regen_time())
+            return false;
+
+        vector<Dir> d = complement(get_direction_to(path.first));
+
+        for(int i = 0; i < 2; ++i)
+        {
+            Pos u = path.first;
+
+            while(cell(u).type != Rock)
+            {
+                int gid = cell(u).id;
+
+                if(gid >= 0 and not is_ally(gid) and status(gid) != 1.0)
+                {   
+                    Goku g = goku(gid);
+
+                    if(prob_kame(g) > 0.3)
+                        return true;
+                }
+
+                u += d[i];
+            }
+        }
+
+        return false;
     }
 
     void detect_map()
@@ -919,10 +1029,7 @@ struct PLAYER_NAME : public Player {
      */
     bool objectives_detected(Dir &kame)
     {
-        if(kamehame_penalty() > gme.strength)
-            return false;
-
-        if(prob_kame() < KAME_MIN_PROB)
+        if(prob_kame(gme) < KAME_MIN_PROB)
             return kame_to_front(kame);
 
         double score;
@@ -933,13 +1040,19 @@ struct PLAYER_NAME : public Player {
 
     bool kame_to_front(Dir &kame)
     {
+        if(round() - wait_round > goku_regen_time())
+            return false;
+
         kame = get_direction_to(path.first);
         int gid = cell(gme.pos + kame).id;
 
         if(gid < 0)
             return false;
 
-        return (not is_stronger_than(goku(gid)));
+        if(is_ally(gid))
+            return false;
+
+        return (prob_win_fight(goku(gid)) < 0.75);
     }
     
 };
@@ -949,7 +1062,7 @@ PLAYER_NAME* PLAYER_NAME::inst = NULL;
 double PLAYER_NAME::priorities[NUM_MAPS][NUM_PRIORITIES] = {
     {1.0, 1.0, 1.5, 1.5, 0.8, 1.5, 1.0, 2.0, 0.0, 1.5}, // DEFAULT PRIORITIES
     {1.0, 1.0, 4.0, 4.0, 4.0, 4.0, 5.0, 1.0, 0.1, 1.5}, // ZIGZAG PRIORITIES
-    {1.0, 1.0, 1.5, 1.5, 0.5, 1.5, 1.0, 2.0, 0.0, 1.5}
+    {1.0, 1.0, 1.5, 2.5, 0.5, 3.0, 1.0, 1.0, 0.0, 1.5}
 };
 
 /*
