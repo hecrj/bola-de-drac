@@ -13,7 +13,7 @@ using namespace std;
 #define PLAYER_NAME_STRING          "Thor"
 
 #define ROUNDS_PER_BALL             30.0
-#define PLAYER_SAFE_RADIUS          5
+#define PLAYER_SAFE_RADIUS          3
 #define OBJECTIVE_SAFE_RADIUS       8
 #define KAME_MIN_PROB               0
 #define MAX_COLLISION_WAIT          3
